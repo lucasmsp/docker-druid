@@ -1,0 +1,47 @@
+version: '3.4'
+
+
+# In this way, it is expected to use Hive in the host. 
+# By doing this, you must change all address parameters to localhost.
+
+
+services:
+
+  postgresql:
+    container_name: postgresql
+    image: postgres:latest
+    volumes:
+      - ./volumes/metastore:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=FoolishPassword
+      - POSTGRES_USER=druid
+      - POSTGRES_DB=druid
+    network_mode: host
+
+
+  druid:
+    image: docker-druid:latest
+    build: ./druid
+    container_name: druid
+    volumes:
+      - ./volumes/storage:/opt/data
+      - ./volumes/vars:/opt/druid/var
+      - ./druid/config/common.runtime.properties:/opt/druid/conf/druid/single-server/micro-quickstart/_common/common.runtime.properties
+    network_mode: host
+    
+
+  kafka:
+    container_name: kafka
+    image: wurstmeister/kafka
+    volumes:
+      - ./examples/wikiticker-2015-09-12-sampled.json.gz:/tmp/wikiticker-2015-09-12-sampled.json.gz
+      - ./examples/updates_wiki.json:/tmp/updates_wiki.json
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_CREATE_TOPICS: "wikipedia:1:1"
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: localhost:2181
+    depends_on:
+      - druid
+    network_mode: host
+  

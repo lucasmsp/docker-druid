@@ -1,0 +1,84 @@
+version: "2.2"
+services:
+
+  postgresql-hadoop:
+    container_name: postgresql-hadoop
+    image: postgres:latest
+    environment:
+      - POSTGRES_PASSWORD=FoolishPassword
+      - POSTGRES_USER=hadoop
+      - POSTGRES_MULTIPLE_DATABASES=hivemetastoredb,druid
+    volumes:
+        - ./postgresql/create-multiple-postgresql-databases.sh:/docker-entrypoint-initdb.d/create-multiple-postgresql-databases.sh
+    ports:
+      - "5432:5432"
+
+  hadoop:
+    image: lucasmsp/hadoop-ecosystem:latest
+    container_name: hadoop
+    build: ./hive
+    hostname: hadoop
+    volumes:
+      - ./hive/conf/tez/tez-site.xml:/usr/tez/conf/tez-site.xml
+      - ./hive/conf/hadoop/hadoop-env.sh:/usr/hadoop/etc/hadoop/hadoop-env.sh
+      - ./hive/conf/hadoop/core-site.xml:/usr/hadoop/etc/hadoop/core-site.xml
+      - ./hive/conf/hadoop/hdfs-site.xml:/usr/hadoop/etc/hadoop/hdfs-site.xml
+      - ./hive/conf/hadoop/mapred-site.xml:/usr/hadoop/etc/hadoop/mapred-site.xml
+      - ./hive/conf/hadoop/yarn-site.xml:/usr/hadoop/etc/hadoop/yarn-site.xml
+      - ./hive/conf/hadoop/workers:/usr/hadoop/etc/hadoop/workers
+      - ./hive/conf/hive/hive-site.xml:/usr/hive/conf/hive-site.xml
+      - ./hive/entrypoint.sh:/entrypoint.sh
+    depends_on:
+      - postgresql-hadoop
+    environment:
+      - HDFS_FORMAT=yes
+      - HIVE_CONFIGURE=yes
+    expose:
+      - 1-65535
+    ports:
+      # YARN UI
+      - 8088:8088
+      # Hadoop namenode UI
+      - 9870:9870
+      # Hadoop secondary namenode UI
+      - 9868:9868
+      # Hive JDBC
+      - 10000:10000
+      - 50070:50070
+      - 50075:50075
+
+  druid:
+    image: lucasmsp/docker-druid:latest
+    build: ./druid
+    container_name: druid
+    volumes:
+      - ./volumes/storage:/opt/data
+      - ./volumes/vars:/opt/druid/var
+      - ./druid/config/common.runtime.properties:/opt/druid/conf/druid/single-server/micro-quickstart/_common/common.runtime.properties
+    ports:
+      - "8081:8081"
+      - "8082:8082"
+      - "8083:8083"
+      - "8888:8888"
+      - "8091:8091"
+      - '2181:2181'
+      - "2888:2888"
+      - "3888:3888" 
+    
+  kafka:
+    container_name: kafka
+    image: wurstmeister/kafka
+    volumes:
+      - ./examples/wikiticker-2015-09-12-sampled.json.gz:/tmp/wikiticker-2015-09-12-sampled.json.gz
+      - ./examples/updates_wiki.json:/tmp/updates_wiki.json
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_CREATE_TOPICS: "wikipedia:1:1"
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_ZOOKEEPER_CONNECT: druid:2181
+    depends_on:
+      - druid
+    ports:
+      - "9092:9092"
+
+
